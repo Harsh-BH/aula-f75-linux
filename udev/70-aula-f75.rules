@@ -1,0 +1,10 @@
+# AULA F75 Max: let the logged-in desktop user open the keyboard's vendor hidraw nodes.
+#
+# Only the vendor interfaces are opened up, never the typing interfaces, so this rule
+# does not let user programs read keystrokes:
+#   USB-C cable 0c45:800a  interface 2 = screen data (0xFF68), interface 3 = commands (0xFF13)
+#   2.4G dongle 05ac:024f  interface 3 = commands (0xFF60)
+# DEVPATH ends in .../<port>:<config>.<interface>/0003:<VID>:<PID>.<n>/hidraw/hidrawN
+# Install: see README.md. Number < 73 so uaccess is applied by 73-seat-late.rules.
+SUBSYSTEM=="hidraw", DEVPATH=="*:1.[23]/0003:0C45:800A.*", TAG+="uaccess"
+SUBSYSTEM=="hidraw", DEVPATH=="*:1.3/0003:05AC:024F.*", TAG+="uaccess"

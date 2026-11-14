@@ -15,6 +15,6 @@ One entry per judgment call made while working unattended. Newest at the bottom.
    our dongle (05AC:024F), so it is the right binary.
 
 3. **Tools without root:** innoextract was unpacked from the Arch package into the
-   scratchpad instead of being installed. Ghidra lives in `~/.cache/aula-re/` because
+   scratchpad instead of being installed. Ghidra lives in `~/aula-re/` (Ghidra refuses project paths with a `.`-dir, so not `~/.cache`) because
    `/tmp` is a RAM-backed tmpfs and the machine has about 3 GB free. Neither tool touches
    the system.

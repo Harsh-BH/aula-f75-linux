@@ -28,7 +28,7 @@ to the keyboard (`/dev/hidraw*` is root-only and sudo needs a password).
 - Unpack the installer with innoextract into `/tmp/aula-official`. Read `config.xml` and
   `layouts/rgb-keyboard.xml`, which hold the VID/PIDs, interfaces, menu flags per link,
   screen geometry and per-key LED indices.
-- Run Ghidra headless (on disk under `~/.cache/aula-re`) with a Java script that decompiles
+- Run Ghidra headless (on disk under `~/aula-re`) with a Java script that decompiles
   every function to one C file. Then find the packet builders by their constants:
   `0x72` (screen metadata), `0xAA 0x55` trailers, `0x5A` (time), and calls through the
   `HidD_SetFeature`/`HidD_GetFeature`/`WriteFile` pointers.
