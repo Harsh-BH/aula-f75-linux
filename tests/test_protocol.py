@@ -241,6 +241,32 @@ class Safety(unittest.TestCase):
             kb.run(P.lighting("wired", 1))
 
 
+class CliDryRun(unittest.TestCase):
+    """--dry-run must never be lost, wherever it is placed (argparse once dropped it)."""
+
+    def test_flag_positions(self):
+        from contextlib import redirect_stdout
+        from unittest import mock
+        from aula_f75 import cli
+        argvs = [["-n", "color", "red", "--link", "dongle"], ["color", "red", "-n", "--link", "dongle"],
+                 ["--dry-run", "--link", "wired", "effect", "breath"], ["effect", "breath", "--link", "wired", "--dry-run"],
+                 ["-n", "keys", "--link", "wired", "esc=red", "w,a,s,d=00ff00", "98=blue"],
+                 ["clock", "-n", "--link", "dongle", "--at", "2026-11-15T07:30:00"],
+                 ["text", "hi", "-n"], ["-n", "battery"]]
+        with mock.patch("aula_f75.device.Hidraw", side_effect=AssertionError("dry run opened a device")):
+            for argv in argvs:
+                with self.subTest(argv=argv):
+                    out = io.StringIO()
+                    with redirect_stdout(out):
+                        cli.main(argv)
+                    self.assertIn("[dry-run", out.getvalue())
+
+    def test_key_spec(self):
+        from aula_f75.cli import key_spec
+        self.assertEqual(key_spec(["esc,w=ff0000", "98=blue"]), {1: 0xFF0000, 39: 0xFF0000, 98: 0x0000FF})
+        self.assertEqual(len(key_spec([], base=0)), 80)
+
+
 class Discovery(unittest.TestCase):
     # [DEV] report descriptors of this machine's dongle, interfaces 3 and 4
     def test_usage_pages(self):

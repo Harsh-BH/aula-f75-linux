@@ -121,8 +121,8 @@ class DryRun:
     Reads return a fake "accepted" reply so command sequences run to the end.
     """
 
-    def __init__(self, label, out=sys.stdout, full=False):
-        self.label, self.out, self.full = label, out, full
+    def __init__(self, label, out=None, full=False):
+        self.label, self.out, self.full = label, out or sys.stdout, full
         self.last = b""
         self.sent = []  # (kind, payload) for tests
 

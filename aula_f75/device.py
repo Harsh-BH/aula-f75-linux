@@ -30,7 +30,7 @@ class Keyboard:
     """One connection. link is "wired", "dongle", or None for whichever is plugged in (cable
     first: it supports everything). With dry_run nothing is opened; packets are printed."""
 
-    def __init__(self, link=None, dry_run=False, out=sys.stdout, log=None):
+    def __init__(self, link=None, dry_run=False, out=None, log=None):
         self.dry_run = dry_run
         self.log = log or (lambda msg: None)
         if link is None:
