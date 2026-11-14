@@ -14,6 +14,7 @@ the addresses are the image addresses in that file.
 | **[CFG]** | `config.xml`, `layouts/rgb-keyboard.xml`, `language/1033.lan` from the same installer | Ground truth for device table, limits and names |
 | **[CAP]** | USBPcap captures of the official app driving a real F75 Max over USB-C, published in [Ghost-CR/F75_Initializer](https://github.com/Ghost-CR/F75_Initializer): `docs/captures/rgb_*.pcapng`, `official_guts_upload.pcapng`. Decoded with `tools/pcap_usb.py`. | Ground truth for real wire bytes and timing (cable only) |
 | **[DEV]** | Report descriptors of this machine's dongle, `/sys/class/hidraw/hidraw{2..6}/device/report_descriptor` | Ground truth for the dongle's interfaces |
+| **[HW]** | This app on the owner's F75 Max (2026-11-14): dongle and cable, every command in README, the GUI | Ground truth for how this keyboard reacts |
 | **[COM]** | Community projects, mainly [VitalyArt/Aula-F75-Max-Driver](https://github.com/VitalyArt/Aula-F75-Max-Driver) (MIT) and [rexdotsh/aula-f75-max-screen](https://github.com/rexdotsh/aula-f75-max-screen) | Hardware-tested by others; used only where [BIN]/[CAP] are silent |
 
 ## 1. Links and interfaces
@@ -184,7 +185,9 @@ chunk × count   (0xFF68, wait ≤300 ms for 01 5a 02 each)
 ```
 [CAP] contains `04 72 02 … 49 03`: slot 2, 841 chunks. There is no `04 f0` in this
 sequence. This app uses slot 1, the default selection. [COM] c0deJedi and VitalyArt use 1
-on hardware.
+on hardware. [HW] An upload to slot 2 is accepted but simply replaces the picture on the
+same screen page; it does not add a second page. The firmware's other pages (clock
+face, status) cannot be themed from the stock protocol.
 
 ### 6.4 Timing
 The official app sends the next chunk as soon as the ack arrives. One 105-frame GIF took
