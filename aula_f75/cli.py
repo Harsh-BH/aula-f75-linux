@@ -8,6 +8,7 @@ from . import protocol as P
 from .device import AulaError, Keyboard
 from .hid import endpoints
 from .layout import KEYS
+from .patterns import AXES, PATTERNS, gradient
 
 NAMED = {"red": 0xFF0000, "green": 0x00FF00, "blue": 0x0000FF, "white": 0xFFFFFF, "black": 0x000000,
          "yellow": 0xFFFF00, "cyan": 0x00FFFF, "magenta": 0xFF00FF, "orange": 0xFF8000, "purple": 0x8000FF,
@@ -84,8 +85,21 @@ def cmd_effect(args, kb):
     print(f"Lighting over {kb.link}: {describe(args)}")
 
 
+def pattern_colors(spec, axis=None):
+    """A preset name or your own comma-separated stops ('ff0000,0000ff') -> {light_index: colour}."""
+    if spec in PATTERNS:
+        preset_axis, stops = PATTERNS[spec]
+    else:
+        try:
+            preset_axis, stops = "x", [color(c) for c in spec.split(",")]
+        except argparse.ArgumentTypeError:
+            raise AulaError(f"unknown pattern {spec!r}: use one of {', '.join(PATTERNS)} or colours like ff0000,0000ff") from None
+    return gradient(stops, axis or preset_axis)
+
+
 def cmd_keys(args, kb):
-    colors = key_spec(args.spec, args.base)
+    colors = pattern_colors(args.pattern, args.axis) if args.pattern else {}
+    colors.update(key_spec(args.spec, args.base))
     if not colors:
         raise AulaError("no keys given")
     kb.per_key(colors, args.brightness)
@@ -172,9 +186,13 @@ def parser():
     p = sub.add_parser("off", help="turn the backlight off")
     p.set_defaults(run=cmd_effect, device=True, mode=0, color=0, brightness=0, speed=0, direction="right", colorful=False)
 
-    p = sub.add_parser("keys", help="per-key colours, e.g. `keys --base 000000 w,a,s,d=red esc=00ff00`")
+    p = sub.add_parser("keys", help="per-key colours, e.g. `keys --pattern ocean w,a,s,d=red esc=00ff00`")
     p.add_argument("spec", nargs="*", help="key[,key...]=colour; keys by name (see layout.py) or LED number")
-    p.add_argument("--base", type=color, help="colour for every key not listed (default: unlit)")
+    start = p.add_mutually_exclusive_group()
+    start.add_argument("--base", type=color, help="colour for every key not listed (default: unlit)")
+    start.add_argument("--pattern", help=f"start from a gradient: {', '.join(PATTERNS)}, or your own colours "
+                                         "like ff0000,0000ff; listed keys still override it")
+    p.add_argument("--axis", choices=AXES, help="gradient direction (default: the preset's own, or x)")
     p.add_argument("-b", "--brightness", type=level, default=5)
     p.set_defaults(run=cmd_keys, device=True)
 

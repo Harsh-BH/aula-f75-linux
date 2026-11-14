@@ -262,6 +262,26 @@ class CliDryRun(unittest.TestCase):
                         cli.main(argv)
                     self.assertIn("[dry-run", out.getvalue())
 
+    def test_patterns(self):
+        from contextlib import redirect_stderr, redirect_stdout
+        from aula_f75.cli import main, pattern_colors
+        from aula_f75.layout import KEYS
+        from aula_f75.patterns import AXES, PATTERNS, gradient
+        centre_x = lambda k: k[1] + k[3] / 2
+        left, right = (f(KEYS.values(), key=centre_x)[0] for f in (min, max))
+        two = gradient([0xFF0000, 0x0000FF], "x")
+        self.assertEqual((len(two), two[left], two[right]), (80, 0xFF0000, 0x0000FF))
+        self.assertEqual(set(gradient([0x123456], "radial").values()), {0x123456})  # one stop = solid
+        for name, (axis, stops) in PATTERNS.items():
+            for a in AXES:
+                self.assertTrue(all(0 <= c <= 0xFFFFFF for c in gradient(stops, a).values()), (name, a))
+        self.assertEqual(pattern_colors("red,blue")[right], 0x0000FF)
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            main(["-n", "keys", "--pattern", "ocean", "w=white"])
+            with self.assertRaises(SystemExit) as caught:
+                main(["-n", "keys", "--pattern", "nope"])
+        self.assertIn("unknown pattern", str(caught.exception))
+
     def test_key_spec(self):
         from aula_f75.cli import key_spec
         self.assertEqual(key_spec(["esc,w=ff0000", "98=blue"]), {1: 0xFF0000, 39: 0xFF0000, 98: 0x0000FF})

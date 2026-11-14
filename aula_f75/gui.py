@@ -13,6 +13,7 @@ from tkinter import colorchooser, filedialog, messagebox, ttk
 from . import protocol as P
 from .device import Keyboard, detect
 from .layout import KEYS
+from .patterns import PATTERNS, gradient
 
 SCALE = 0.75  # official UI key rectangles are 800x300 px; draw them smaller
 LABELS = {"backspace": "bksp", "backslash": "\\", "lbracket": "[", "rbracket": "]", "semicolon": ";", "quote": "'",
@@ -171,6 +172,9 @@ class App:
         bar.pack(fill="x")
         ttk.Label(bar, text="Click or drag over keys to paint them.").pack(side="left")
         self._color_button(bar, self.paint, "Paint colour…").pack(side="left", padx=10)
+        self.pattern = tk.StringVar(value="rainbow")
+        ttk.Combobox(bar, textvariable=self.pattern, values=list(PATTERNS), state="readonly", width=12).pack(side="left")
+        ttk.Button(bar, text="Use pattern", command=self._use_pattern).pack(side="left", padx=4)
         width = max(x + w for _, x, _, w, _ in KEYS.values())
         height = max(y + hh for _, _, y, _, hh in KEYS.values())
         self.canvas = tk.Canvas(f, width=int((width - 70) * SCALE), height=int((height + 10) * SCALE), background="#202020",
@@ -208,6 +212,11 @@ class App:
         for item in self.canvas.find_overlapping(event.x, event.y, event.x, event.y):
             if item in self.key_items:
                 self._set_key(self.key_items[item], self.paint.get())
+
+    def _use_pattern(self):
+        axis, stops = PATTERNS[self.pattern.get()]
+        for index, rgb in gradient(stops, axis).items():
+            self._set_key(index, f"#{rgb:06x}")
 
     def _fill(self, color):
         for index in self.index_rects:
