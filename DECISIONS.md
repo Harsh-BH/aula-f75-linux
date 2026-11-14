@@ -144,3 +144,11 @@ all now fixed and covered by regression tests in `DeviceFailureModes`:
     and 72 in the official captures, and `04 28` in c0deJedi's clock sync. A "rejected"
     reply to `04 23` (per-key table) or `04 f0` only warns and continues, like the official
     app, because no capture shows how those reply.
+
+## After the first hardware test (2026-11-14, dongle)
+
+25. **The dongle echo wait is 1.5 s, not the official ~305 ms.** On this keyboard the echo came
+    after ~23 ms usually, but one time in four after 510-1000 ms, so the official limit raised
+    false "no reply" warnings (decision 12). Measured over 25 probes plus 40 real commands;
+    after the change, 20 back-to-back runs had no false warning. The keyboard also went fully
+    silent once for about a minute while lit, and recovered by itself; the warning covers that.

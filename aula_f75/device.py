@@ -10,7 +10,9 @@ from .hid import DryRun, Hidraw, endpoints
 ACK_CONFIRMED = {0x18, 0x13, 0x02, 0x72, 0x28}
 CMD_GAP_S = 0.035   # rgb-keyboard.xml <cmd_delaytime value="35"/>, used by FUN_0044eeb0
 CHUNK_ACK_S = 1.0   # official app waits 300 ms (FUN_0044f2b0); acks arrive ~140 ms apart
-ECHO_TRIES = 20     # FUN_0044f5d0: 20 polls, 5 ms read timeout + 10 ms sleep each
+# FUN_0044f5d0 gives up after ~305 ms (20 polls of 5 ms read + 10 ms sleep), but on real hardware
+# (2026-11-14, 25 sends) the echo came after ~23 ms usually and 510-930 ms one time in four.
+ECHO_TIMEOUT_S = 1.5
 
 
 class AulaError(Exception):
@@ -160,12 +162,12 @@ class Keyboard:
         self.log(f"out {step.data.hex(' ')}")
         if self.dry_run:
             return b""
-        time.sleep(0.005)
-        for _ in range(ECHO_TRIES):
-            reply = self.cmd.read(0.005)
+        deadline = time.monotonic() + ECHO_TIMEOUT_S
+        while (left := deadline - time.monotonic()) > 0:
+            reply = self.cmd.read(left)
             if reply[:3] == step.data[:3]:
+                self.log(f" in {reply.hex(' ')}")
                 return reply
-            time.sleep(0.010)
         self.warn(f"no reply to {step.data[:3].hex(' ')} through the dongle; the keyboard may be asleep "
                   "(press a key), out of range, or not in 2.4 GHz mode. The command may not have been applied.")
         return b""

@@ -12,6 +12,7 @@ import fnmatch
 import io
 import os
 import sys
+import time
 import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -335,6 +336,25 @@ class DeviceFailureModes(unittest.TestCase):
             with self.assertRaises(AulaError):
                 kb.lighting(1, 0xFF0000)
             self.assertEqual(len(cmd.sent), 2)  # stopped at the rejected command
+
+    def test_dongle_echo_wait(self):
+        """[HW] 2026-11-14: the echo arrives after ~23 ms, but one time in four only after 510-930 ms."""
+        from unittest import mock
+        from aula_f75 import device
+        from aula_f75.hid import Endpoint
+        ep = Endpoint("/dev/fake", 0x05AC, 0x024F, P.DONGLE_CMD_PAGE, 0x61, 3, "")
+        report = P.battery_query()[0].data
+        for queued, timeout, level, warned in (
+                ([b"\x05\x10\x00" + bytes(29), report[:3] + b"\x62" + bytes(28)], 1.5, 98, 0),  # late lighting echo, then ours
+                ([], 0.01, None, 1)):  # nothing comes back
+            fake = FakeHid(ep)
+            fake.read = lambda timeout_s, size=4097, q=list(queued): (time.sleep(min(timeout_s, 0.002)), q.pop(0) if q else b"")[1]
+            warnings = []
+            with mock.patch.object(device, "find", lambda ids, page: ep), \
+                    mock.patch.object(device, "Hidraw", lambda e: fake), \
+                    mock.patch.object(device, "ECHO_TIMEOUT_S", timeout):
+                self.assertEqual(device.Keyboard("dongle", warn=warnings.append).battery(), level)
+            self.assertEqual(len(warnings), warned)
 
     def test_bootloader_magic_on_any_page_refused(self):
         page = P.BOOTLOADER_MAGIC.ljust(64, b"\x00")
