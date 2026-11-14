@@ -120,7 +120,8 @@ global options, before or after the command: --link wired|dongle, -n/--dry-run, 
   tab has the same presets ("Use pattern"), and you can paint over them before applying.
 - **Reactive (USB-C):** `react ripple` (rings roll out from each key), `glow` (keys light and
   fade), `heatmap` (keys warm up with use), `speed` (board colour follows typing speed). Runs
-  until Ctrl+C; the keys keep the last frame afterwards until you set another look.
+  until Ctrl+C; the keys keep the last frame afterwards until you set another look. The GUI's
+  Reactive tab has the same effects with Start/Stop; any other action in the window stops it.
 - **Colours:** hex `ff8800` or a basic name (`red`, `orange`, …).
 - **Link choice:** the link is picked automatically, the cable first when both are
   present. Use `--link` to force one.

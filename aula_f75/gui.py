@@ -13,7 +13,8 @@ from tkinter import colorchooser, filedialog, messagebox, ttk
 from . import protocol as P
 from .device import Keyboard, detect
 from .layout import KEYS
-from .patterns import PATTERNS, gradient
+from .patterns import PATTERNS, blend, gradient
+from .react import EFFECTS
 
 SCALE = 0.75  # official UI key rectangles are 800x300 px; draw them smaller
 LABELS = {"backspace": "bksp", "backslash": "\\", "lbracket": "[", "rbracket": "]", "semicolon": ";", "quote": "'",
@@ -40,6 +41,7 @@ class App:
         root.title("AULA F75 Max")
         self.events = queue.Queue()   # (callable) run on the Tk thread
         self.jobs = queue.Queue()     # (label, fn(kb)) run on the worker thread
+        self.live = threading.Event()  # set = stop the running reactive stream, if any
         threading.Thread(target=self._worker, daemon=True).start()
 
         self.link = tk.StringVar(value="auto")
@@ -57,6 +59,7 @@ class App:
         tabs.pack(fill="both", expand=True, padx=8, pady=4)
         tabs.add(self._lighting_tab(tabs), text="Lighting")
         tabs.add(self._keys_tab(tabs), text="Per-key")
+        tabs.add(self._react_tab(tabs), text="Reactive")
         tabs.add(self._screen_tab(tabs), text="Screen & clock")
 
         self.log = tk.Text(root, height=9, wrap="none", font="TkFixedFont", state="disabled")
@@ -85,6 +88,7 @@ class App:
 
     def submit(self, label, fn, need=None):
         """Queue fn(kb). need="wired"/"dongle" picks that link when the selector is on Auto."""
+        self.live.set()  # a reactive stream holds the worker; stop it so this job can run
         link = None if self.link.get() == "auto" else self.link.get()
         link = link or need
         self.jobs.put((label, fn, link, self.dry_run.get()))
@@ -248,6 +252,50 @@ class App:
         colors = {i: int(c.lstrip("#"), 16) for i, c in self.key_colors.items()}
         brightness = self.key_brightness.get()
         self.submit(f"per-key colours ({len(colors)} keys)", lambda kb: kb.per_key(colors, brightness))
+
+    # ------------------------------------------------------------- reactive
+
+    def _react_tab(self, parent):
+        f = ttk.Frame(parent, padding=10)
+        self.react_effect = tk.StringVar(value="ripple")
+        self.react_rainbow = tk.BooleanVar(value=True)
+        self.react_color = tk.StringVar(value="#ff8000")
+        self.react_base = tk.StringVar(value="none")
+        self.react_level = tk.IntVar(value=25)
+        rows = [
+            ("Effect", ttk.Combobox(f, textvariable=self.react_effect, values=EFFECTS, state="readonly", width=14)),
+            ("Colour", self._color_button(f, self.react_color)),
+            ("", ttk.Checkbutton(f, text="Rainbow: a new colour for every key press", variable=self.react_rainbow)),
+            ("Background", ttk.Combobox(f, textvariable=self.react_base, values=["none", *PATTERNS], state="readonly", width=14)),
+            ("Background %", tk.Scale(f, from_=0, to=100, orient="horizontal", variable=self.react_level, length=200)),
+        ]
+        for r, (label, widget) in enumerate(rows):
+            ttk.Label(f, text=label).grid(row=r, column=0, sticky="w", pady=3)
+            widget.grid(row=r, column=1, sticky="w", pady=3)
+        buttons = ttk.Frame(f)
+        buttons.grid(row=len(rows), column=0, columnspan=2, sticky="w", pady=8)
+        ttk.Button(buttons, text="Start", command=self.start_react).pack(side="left")
+        ttk.Button(buttons, text="Stop", command=lambda: self.live.set()).pack(side="left", padx=6)
+        ttk.Label(f, wraplength=420, justify="left", text=(
+            "ripple: rings roll out from each key  ·  glow: keys light up and fade  ·  heatmap: keys warm up "
+            "as you use them  ·  speed: the board turns from blue to red as you type faster.\n\n"
+            "Runs while you type, over USB-C only. Any other action stops it.")).grid(
+            row=len(rows) + 1, column=0, columnspan=2, sticky="w")
+        return f
+
+    def start_react(self):
+        from . import react
+        base = None
+        if self.react_base.get() != "none":
+            axis, stops = PATTERNS[self.react_base.get()]
+            level = self.react_level.get() / 100
+            base = {i: blend((0, c), level) for i, c in gradient(stops, axis).items()}
+        color = None if self.react_rainbow.get() else int(self.react_color.get().lstrip("#"), 16)
+        renderer = react.Renderer(self.react_effect.get(), color, base)
+        stop = threading.Event()
+        self.submit(f"reactive {self.react_effect.get()} (type on the keyboard; Stop ends it)",
+                    lambda kb: "{} frames in {:.0f} s".format(*react.run(kb, renderer, stop)), need="wired")
+        self.live = stop  # after submit(), which stopped the previous stream
 
     # ------------------------------------------------------------- screen
 
