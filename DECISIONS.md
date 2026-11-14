@@ -124,3 +124,23 @@ run in roughly chronological order.
 21. **GUI window size:** under this machine's compositor, new Tk windows open at 636×354
     whatever Tk requests. That is the compositor's choice, so I didn't fight it; resize the
     window to see the log pane.
+
+## After the independent review
+
+An independent agent reviewed the code against the decompile and Linux hidraw semantics. It
+found no byte mismatches and no way around the guard or the dry-run flag. It raised these,
+all now fixed and covered by regression tests in `DeviceFailureModes`:
+
+22. **The screen interface is optional for everything except uploads.** If it is missing or
+    not accessible (for example, if my interface-2 guess in the udev rule is wrong), lighting,
+    per-key and clock still work over the cable. `upload_screen` checks for it before
+    sending `04 18`/`04 72`, so we never announce chunks we cannot deliver.
+
+23. **One aula-f75 process at a time.** Each hidraw handle takes an exclusive non-blocking
+    `flock`, so a cron'd `clock` can't inject `04 02` into a GUI upload. The second process
+    gets a clear "in use" error.
+
+24. **The ack check is enforced only where hardware has confirmed the ack:** `04` 18, 13, 02
+    and 72 in the official captures, and `04 28` in c0deJedi's clock sync. A "rejected"
+    reply to `04 23` (per-key table) or `04 f0` only warns and continues, like the official
+    app, because no capture shows how those reply.

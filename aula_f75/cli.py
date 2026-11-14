@@ -217,7 +217,7 @@ def main(argv=None):
             args.run(args, kb)
         if args.dry_run:
             print("Dry run: nothing was sent to the keyboard.", file=sys.stderr)
-    except (AulaError, PermissionError, ValueError, OSError) as error:
+    except (AulaError, PermissionError, ValueError, OSError, argparse.ArgumentTypeError) as error:
         sys.exit(f"Error: {error}")
     except KeyboardInterrupt:
         sys.exit("\nInterrupted. If a screen upload was running, replug the USB-C cable before retrying.")

@@ -61,7 +61,7 @@ def check_step(step):
         raise PermissionError(f"refusing unknown cable command {bytes(data[:2]).hex(' ')}")
     if step.kind == "out" and (len(data) != DONGLE_LEN or data[0] not in DONGLE_OPS):
         raise PermissionError(f"refusing unknown dongle command {bytes(data[:1]).hex()}")
-    if step.kind in ("cmd", "data") and bytes(data[:8]) == BOOTLOADER_MAGIC:
+    if step.kind in ("cmd", "data") and any(bytes(data[i:i + 8]) == BOOTLOADER_MAGIC for i in range(0, len(data), CMD_LEN)):
         raise PermissionError("refusing bootloader command")
     if step.kind not in ("cmd", "data", "chunk", "out"):
         raise ValueError(f"unknown step kind {step.kind!r}")

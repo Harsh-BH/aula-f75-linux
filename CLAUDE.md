@@ -13,8 +13,6 @@ Python ≥3.10 stdlib (hidraw ioctls, argparse, tkinter). Pillow only for screen
 | install | none; optional `pipx install --system-site-packages .` |
 | dev | `python3 -m aula_f75 -n <command>` (dry run) · `python3 -m aula_f75.gui` |
 | test | `python3 -m unittest discover -s tests` (+ `AULA_CAPTURES=<F75_Initializer checkout>` for the full replay) |
-| lint / typecheck | none |
-| build | none |
 
 Run test before claiming anything works.
 
@@ -40,5 +38,5 @@ aula_f75/layout.py    generated from the official rgb-keyboard.xml; regenerate, 
 
 ## Don't
 
-- Don't add firmware-update, bootloader, flash, macro-wipe or reset commands, or widen `WIRED_OPS`/`DONGLE_OPS` without a [BIN] source.
-- Don't run or execute the official Windows software; static analysis only.
+- Don't add firmware/bootloader/flash/reset/macro-wipe commands or widen `WIRED_OPS`/`DONGLE_OPS` without a [BIN] source.
+- Don't execute the official Windows software; static analysis only.

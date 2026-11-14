@@ -58,21 +58,26 @@ def top_level_usage(descriptor):
     return page or 0, usage or 0
 
 
+def _read(path, mode="r"):
+    with open(path, mode) as f:
+        return f.read()
+
+
 def endpoints(sysfs="/sys/class/hidraw"):
     """Every hidraw node on the system, described from sysfs (readable without root)."""
     found = []
     for node in sorted(glob.glob(os.path.join(sysfs, "hidraw*"))):
         try:
-            props = dict(line.rstrip("\n").partition("=")[::2] for line in open(os.path.join(node, "device/uevent")))
+            props = dict(line.partition("=")[::2] for line in _read(os.path.join(node, "device/uevent")).splitlines())
             _bus, vid, pid = (int(x, 16) for x in props["HID_ID"].split(":"))
-            page, usage = top_level_usage(open(os.path.join(node, "device/report_descriptor"), "rb").read())
+            page, usage = top_level_usage(_read(os.path.join(node, "device/report_descriptor"), "rb"))
         except (OSError, KeyError, ValueError):
             continue
         iface = -1
         # .../1-4:1.3/0003:05AC:024F.0006 -> the USB interface directory is the parent
         intf_file = os.path.join(os.path.realpath(os.path.join(node, "device")), "..", "bInterfaceNumber")
         try:
-            iface = int(open(intf_file).read(), 16)
+            iface = int(_read(intf_file), 16)
         except (OSError, ValueError):
             pass
         found.append(Endpoint("/dev/" + os.path.basename(node), vid, pid, page, usage, iface, props.get("HID_NAME", "")))
@@ -90,6 +95,11 @@ class Hidraw:
             raise PermissionError(
                 f"no permission on {endpoint.path}: install udev/70-aula-f75.rules (see README.md) and replug"
             ) from None
+        try:  # one aula-f75 process at a time: an interleaved 04 02 would break a running upload
+            fcntl.flock(self.fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            os.close(self.fd)
+            raise BlockingIOError(f"{endpoint.path} is in use by another aula-f75 process (GUI or CLI); try again") from None
 
     def set_feature(self, payload):
         buf = bytearray(b"\x00" + bytes(payload))
@@ -108,8 +118,9 @@ class Hidraw:
         return os.read(self.fd, size) if ready else b""
 
     def drain(self):
-        while self.read(0):
-            pass
+        for _ in range(64):  # the kernel queues at most 64 reports per reader
+            if not self.read(0):
+                break
 
     def close(self):
         os.close(self.fd)

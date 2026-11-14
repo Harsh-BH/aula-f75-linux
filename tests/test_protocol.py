@@ -267,6 +267,87 @@ class CliDryRun(unittest.TestCase):
         self.assertEqual(len(key_spec([], base=0)), 80)
 
 
+class FakeHid:
+    """Records what would be written; GET_FEATURE answers 'accepted' unless op is in reject."""
+    def __init__(self, endpoint, reject=(), fail_open=False):
+        if fail_open:
+            raise PermissionError(f"no permission on {endpoint.path}")
+        self.endpoint, self.reject, self.sent, self.last = endpoint, reject, [], b""
+
+    def set_feature(self, data):
+        self.sent.append(bytes(data))
+        self.last = bytes(data)
+
+    def get_feature(self, n):
+        reply = bytearray(self.last.ljust(n, b"\x00"))
+        reply[3] = 0x00 if self.last[1] in self.reject else 0x01
+        return bytes(reply)
+
+    def write(self, data):
+        self.sent.append(bytes(data))
+
+    def read(self, timeout_s, size=4097):
+        return P.CHUNK_ACK
+
+    def drain(self):
+        pass
+
+    def close(self):
+        pass
+
+
+class DeviceFailureModes(unittest.TestCase):
+    """Review findings: these must fail safe without real hardware."""
+
+    def keyboard(self, reject=(), data_fails=False):
+        from unittest import mock
+        from aula_f75 import device
+        from aula_f75.hid import Endpoint
+        eps = {P.WIRED_CMD_PAGE: Endpoint("/dev/fake-cmd", 0x0C45, 0x800A, P.WIRED_CMD_PAGE, 1, 3, ""),
+               P.WIRED_DATA_PAGE: Endpoint("/dev/fake-data", 0x0C45, 0x800A, P.WIRED_DATA_PAGE, 0x61, 2, "")}
+        made = []
+
+        def hid(ep):
+            made.append(FakeHid(ep, reject, fail_open=data_fails and ep.usage_page == P.WIRED_DATA_PAGE))
+            return made[-1]
+        with mock.patch.object(device, "find", lambda ids, page: eps.get(page)), \
+                mock.patch.object(device, "Hidraw", hid):
+            warnings = []
+            kb = device.Keyboard("wired", warn=warnings.append)
+        with mock.patch.object(device.time, "sleep", lambda s: None):
+            yield kb, made[0], warnings
+
+    def test_lighting_works_without_screen_interface(self):
+        for kb, cmd, _ in self.keyboard(data_fails=True):
+            kb.lighting(1, 0xFF0000)
+            self.assertEqual(len(cmd.sent), 5)
+            with self.assertRaises(Exception):
+                kb.upload_screen(P.screen_stream([bytes(P.FRAME_LEN)], [100]))
+            self.assertEqual(len(cmd.sent), 5)  # nothing announced: no 04 18 / 04 72 without a data interface
+
+    def test_unconfirmed_ack_warns_confirmed_ack_raises(self):
+        for kb, cmd, warnings in self.keyboard(reject={0x23}):
+            kb.per_key({1: 0xFF0000})
+            self.assertEqual(len(warnings), 1)
+            self.assertEqual(cmd.sent[-1][:2], b"\x04\xf0")  # sequence completed
+        from aula_f75.device import AulaError
+        for kb, cmd, _ in self.keyboard(reject={0x13}):
+            with self.assertRaises(AulaError):
+                kb.lighting(1, 0xFF0000)
+            self.assertEqual(len(cmd.sent), 2)  # stopped at the rejected command
+
+    def test_bootloader_magic_on_any_page_refused(self):
+        page = P.BOOTLOADER_MAGIC.ljust(64, b"\x00")
+        with self.assertRaises(PermissionError):
+            P.check_step(P.Step("data", bytes(64) + page))
+
+    def test_bad_colour_in_key_spec_is_clean_error(self):
+        from aula_f75 import cli
+        with self.assertRaises(SystemExit) as caught:
+            cli.main(["-n", "keys", "esc=bogus"])
+        self.assertIn("not a colour", str(caught.exception))
+
+
 class Discovery(unittest.TestCase):
     # [DEV] report descriptors of this machine's dongle, interfaces 3 and 4
     def test_usage_pages(self):

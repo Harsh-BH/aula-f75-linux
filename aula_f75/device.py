@@ -5,6 +5,9 @@ import time
 from . import protocol as P
 from .hid import DryRun, Hidraw, endpoints
 
+# Commands seen to answer "accepted" (byte 3 == 01) on real hardware: 18/13/02/72 in the official
+# captures, 28 in c0deJedi's clock sync. Others (23, f0) are only warned about, like the official app.
+ACK_CONFIRMED = {0x18, 0x13, 0x02, 0x72, 0x28}
 CMD_GAP_S = 0.035   # rgb-keyboard.xml <cmd_delaytime value="35"/>, used by FUN_0044eeb0
 CHUNK_ACK_S = 1.0   # official app waits 300 ms (FUN_0044f2b0); acks arrive ~140 ms apart
 ECHO_TRIES = 20     # FUN_0044f5d0: 20 polls, 5 ms read timeout + 10 ms sleep each
@@ -50,8 +53,15 @@ class Keyboard:
             if cmd_ep is None:
                 raise AulaError("keyboard not found on USB-C (0c45:800a). Plug in the cable, or use --link dongle.")
             self.cmd = Hidraw(cmd_ep)
+            # The screen interface is only needed for uploads: lighting and clock must still work
+            # if it is missing or not accessible (e.g. the udev rule's interface guess is wrong).
             data_ep = find(P.WIRED, P.WIRED_DATA_PAGE)
-            self.data = Hidraw(data_ep) if data_ep else None
+            self.data_problem = "screen data interface (usage page 0xff68) not found"
+            if data_ep:
+                try:
+                    self.data = Hidraw(data_ep)
+                except (OSError, AulaError) as error:
+                    self.data_problem = str(error)
         else:
             ep = find(P.DONGLE, P.DONGLE_CMD_PAGE)
             if ep is None:
@@ -102,8 +112,6 @@ class Keyboard:
                     self._sleep(CMD_GAP_S)
                     replies.append(self.cmd.get_feature(P.CMD_LEN))
             elif step.kind == "chunk":
-                if self.data is None:
-                    raise AulaError("screen data interface (usage page 0xff68) not found or not accessible")
                 if sent == 0:
                     self.data.drain()
                 self.data.write(step.data)
@@ -132,7 +140,11 @@ class Keyboard:
                 break
         self.log(f"cmd {step.data[:10].hex(' ')} -> {reply[:8].hex(' ')}")
         if reply[:2] != step.data[:2] or reply[3] != 0x01:
-            raise AulaError(f"keyboard did not accept {step.data[:2].hex(' ')} (reply {reply[:8].hex(' ')})")
+            message = f"keyboard did not accept {step.data[:2].hex(' ')} (reply {reply[:8].hex(' ')})"
+            if step.data[1] not in ACK_CONFIRMED:
+                self.warn(message + "; continuing like the official app, which never checks replies")
+            else:
+                raise AulaError(message)
         return [reply]
 
     def _chunk_ack(self):
@@ -184,4 +196,6 @@ class Keyboard:
     def upload_screen(self, stream, progress=None, slot=P.SLOT):
         if self.link != "wired":
             raise AulaError("screen upload needs the USB-C cable (the official app disables it over 2.4 GHz)")
+        if self.data is None:  # check before 04 18 / 04 72 announce chunks we could not send
+            raise AulaError(self.data_problem)
         self.run(P.screen_upload(stream, slot), progress)

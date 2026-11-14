@@ -99,7 +99,7 @@ class App:
                 self.say(f"  done{': ' + str(result) if result is not None else ''}")
             except Exception as error:  # show every failure in the window; the worker must survive
                 self.say(f"  error: {error}")
-                self.post(lambda e=error: messagebox.showerror("AULA F75 Max", f"{label} failed:\n{e}"))
+                self.post(lambda e=error, what=label: messagebox.showerror("AULA F75 Max", f"{what} failed:\n{e}"))
 
     def refresh_status(self):
         found = detect()
@@ -216,12 +216,17 @@ class App:
     def _load_keys(self):
         path = filedialog.askopenfilename(filetypes=[("Key colours", "*.json")])
         if path:
-            with open(path) as fh:
-                data = json.load(fh)
+            try:
+                with open(path) as fh:
+                    data = json.load(fh)
+                valid = {KEYS[n][0]: c for n, c in data.items()
+                         if n in KEYS and isinstance(c, str) and len(c) == 7 and c[0] == "#" and int(c[1:], 16) >= 0}
+            except (OSError, ValueError, AttributeError) as error:
+                messagebox.showerror("AULA F75 Max", f"Cannot load {path}:\n{error}")
+                return
             self._fill(None)
-            for name, color in data.items():
-                if name in KEYS:
-                    self._set_key(KEYS[name][0], color)
+            for index, color in valid.items():
+                self._set_key(index, color)
 
     def _save_keys(self):
         path = filedialog.asksaveasfilename(defaultextension=".json", filetypes=[("Key colours", "*.json")])
@@ -264,7 +269,8 @@ class App:
         battery_row = ttk.Frame(left)
         battery_row.pack(anchor="w", pady=6)
         ttk.Button(battery_row, text="Battery (2.4 GHz)", command=lambda: self.submit(
-            "battery", lambda kb: f"{kb.battery()}%", need="dongle")).pack(side="left")
+            "battery", lambda kb: (lambda v: "no reply (asleep?)" if v is None else f"{v}%")(kb.battery()),
+            need="dongle")).pack(side="left")
         self._photo = tk.PhotoImage(width=256, height=256)  # with an image, Label sizes are pixels, not text lines
         self.preview = tk.Label(f, background="black", image=self._photo)
         self.preview.pack(side="left", padx=16)
