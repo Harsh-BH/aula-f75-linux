@@ -30,9 +30,10 @@ class Keyboard:
     """One connection. link is "wired", "dongle", or None for whichever is plugged in (cable
     first: it supports everything). With dry_run nothing is opened; packets are printed."""
 
-    def __init__(self, link=None, dry_run=False, out=None, log=None):
+    def __init__(self, link=None, dry_run=False, out=None, log=None, warn=None):
         self.dry_run = dry_run
         self.log = log or (lambda msg: None)
+        self.warn = warn or (lambda msg: print(f"warning: {msg}", file=sys.stderr))
         if link is None:
             present = detect()
             link = "dongle" if present["dongle"] and not present["wired"] else "wired"
@@ -115,7 +116,7 @@ class Keyboard:
             elif step.kind == "out":
                 replies.append(self._out(step))
         if missing_acks:
-            self.log(f"{missing_acks} of {total} chunks were not acknowledged")
+            self.warn(f"{missing_acks} of {total} chunks were not acknowledged")
         return replies
 
     def _cmd(self, step):
@@ -153,7 +154,8 @@ class Keyboard:
             if reply[:3] == step.data[:3]:
                 return reply
             time.sleep(0.010)
-        self.log("no echo from the dongle (keyboard asleep or out of range?)")
+        self.warn(f"no reply to {step.data[:3].hex(' ')} through the dongle; the keyboard may be asleep "
+                  "(press a key), out of range, or not in 2.4 GHz mode. The command may not have been applied.")
         return b""
 
     # -------------------------------------------------------------- features

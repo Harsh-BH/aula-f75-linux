@@ -1,0 +1,23 @@
+[project]
+name = "aula-f75"
+version = "0.1.0"
+description = "Control the AULA F75 Max keyboard's RGB lighting and 128x128 screen on Linux"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []  # stdlib only; Pillow (python-pillow) is needed for the screen commands
+
+[project.optional-dependencies]
+screen = ["Pillow>=10.1"]
+
+[project.scripts]
+aula-f75 = "aula_f75.cli:main"
+
+[project.gui-scripts]
+aula-f75-gui = "aula_f75.gui:main"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["aula_f75"]

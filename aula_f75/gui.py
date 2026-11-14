@@ -94,7 +94,7 @@ class App:
             label, fn, link, dry = self.jobs.get()
             try:
                 # in a dry run the DryRun transport already prints every packet
-                with Keyboard(link, dry_run=dry, out=LogWriter(self.say), log=None if dry else self.say) as kb:
+                with Keyboard(link, dry_run=dry, out=LogWriter(self.say), log=None if dry else self.say, warn=self.say) as kb:
                     result = fn(kb)
                 self.say(f"  done{': ' + str(result) if result is not None else ''}")
             except Exception as error:  # show every failure in the window; the worker must survive
