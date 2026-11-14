@@ -126,6 +126,24 @@ global options, before or after the command: --link wired|dongle, -n/--dry-run, 
 - **Link choice:** the link is picked automatically, the cable first when both are
   present. Use `--link` to force one.
 
+## Reactive lighting at login
+
+A systemd user service runs `react ripple --wait` from login to logout. While the keyboard is
+on the dongle or unplugged it waits quietly, and it picks up again when the cable is back.
+
+```sh
+install -m 0644 systemd/aula-f75-react.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now aula-f75-react      # start now and at every login
+systemctl --user edit --full aula-f75-react       # change the effect or colours (the ExecStart line)
+journalctl --user -u aula-f75-react               # what it did
+systemctl --user disable --now aula-f75-react     # turn it off
+```
+
+Only one program can talk to the keyboard at a time. To run another command or the GUI,
+pause the service first with `systemctl --user stop aula-f75-react`, then start it again
+with `start`.
+
 ## Troubleshooting
 
 - **`no permission on /dev/hidrawN`:** the udev rule isn't active. Repeat the setup and
@@ -156,6 +174,7 @@ aula_f75/screen.py     image/GIF/text -> 128x128 RGB565 frames (Pillow)
 aula_f75/layout.py     per-key LED map, generated from the official layout XML
 aula_f75/patterns.py   gradient presets laid over the key positions
 aula_f75/react.py      reactive effects: key presses in, live frames out
+systemd/               login service for reactive lighting
 aula_f75/cli.py, gui.py
 tests/test_protocol.py byte-exact vectors from official captures and the decompiled app
 tools/pcap_usb.py      USBPcap reader used to pull those vectors

@@ -99,7 +99,8 @@ class Hidraw:
             fcntl.flock(self.fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             os.close(self.fd)
-            raise BlockingIOError(f"{endpoint.path} is in use by another aula-f75 process (GUI or CLI); try again") from None
+            raise BlockingIOError(f"{endpoint.path} is in use by another aula-f75 process (GUI, CLI or the login "
+                                   "service: systemctl --user stop aula-f75-react); try again") from None
 
     def set_feature(self, payload):
         buf = bytearray(b"\x00" + bytes(payload))

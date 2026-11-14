@@ -243,6 +243,36 @@ class Reactive(unittest.TestCase):
             sent, _ = react.run(kb, react.Renderer("glow"), stop)
         self.assertEqual((kb.calls, sent), (3, 1))
 
+    def test_react_wait_retries_quietly_until_the_cable_is_back(self):
+        from contextlib import redirect_stderr, redirect_stdout
+        from unittest import mock
+        from aula_f75 import cli, react
+        from aula_f75.device import AulaError
+        opened = []
+
+        class Kb:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                pass
+
+        def keyboard(*_args, **_kw):
+            opened.append(1)
+            if len(opened) < 3:
+                raise AulaError("keyboard not found on USB-C")
+            return Kb()
+
+        def run(_kb, _renderer, stop):
+            stop.set()
+            return 7, 1.0
+        err = io.StringIO()
+        with mock.patch.object(cli, "Keyboard", keyboard), mock.patch.object(react, "run", run), \
+                mock.patch.object(cli, "WAIT_S", 0), redirect_stderr(err), redirect_stdout(io.StringIO()):
+            cli.main(["react", "ripple", "--wait"])
+        self.assertEqual(len(opened), 3)
+        self.assertEqual(err.getvalue().count("Waiting"), 1)  # one line, not one per retry
+
     def test_key_codes_cover_every_key_the_host_sees(self):
         from aula_f75.layout import KEYS
         from aula_f75.react import LINUX_KEYS

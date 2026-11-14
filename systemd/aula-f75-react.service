@@ -1,0 +1,15 @@
+# Reactive key lighting from login to logout (USB-C only; waits while the keyboard is on the dongle).
+# Install: README.md -> "Reactive lighting at login". Change the look: systemctl --user edit --full aula-f75-react
+[Unit]
+Description=AULA F75 Max reactive key lighting
+
+[Service]
+# %h = your home directory; edit this line if the checkout lives elsewhere
+WorkingDirectory=%h/github-repos/aula-f75-linux
+ExecStart=/usr/bin/python3 -m aula_f75 react ripple --wait -c 0000ff,ff0000,8000ff --base 0000ff,8000ff,ff0000 --base-level 20
+# --wait already rides out unplugging and the dongle; this only catches real crashes
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

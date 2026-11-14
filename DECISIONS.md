@@ -169,3 +169,11 @@ all now fixed and covered by regression tests in `DeviceFailureModes`:
 
 28. **A busy frame is dropped, not fatal.** The stream stops only after 10 failed frames in a
     row. Each frame is a full snapshot, so the next one repairs a dropped one.
+
+29. **Reactive lighting at login is a systemd user service** (`systemd/aula-f75-react.service`):
+    no root, it stops at logout, and logs go to the journal. `react --wait` opens the keyboard
+    itself and waits quietly (one log line per change) while it is on the dongle or unplugged.
+    Without that, systemd restarts would write several journal lines every few seconds. The
+    exclusive device lock (decision 23) stays: interleaving live frames with an upload or a
+    saved write would corrupt both. So other commands report that the service holds the
+    keyboard and how to pause it.

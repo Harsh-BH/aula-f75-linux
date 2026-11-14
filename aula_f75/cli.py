@@ -3,6 +3,7 @@ import argparse
 import datetime
 import os
 import sys
+import time
 
 from . import protocol as P
 from .device import AulaError, Keyboard
@@ -107,7 +108,11 @@ def cmd_keys(args, kb):
     print(f"Per-key colours over {kb.link}: {len(colors)} LEDs")
 
 
-def cmd_react(args, kb):
+WAIT_S = 5  # react --wait: seconds between attempts to reach the keyboard
+
+
+def cmd_react(args, _kb):
+    """Opens the keyboard itself so that --wait can ride out unplugging, the dongle and login races."""
     import signal
     import threading
     from . import react
@@ -116,10 +121,28 @@ def cmd_react(args, kb):
         base = {i: blend((0, c), args.base_level / 100) for i, c in pattern_colors(args.base).items()}
     renderer = react.Renderer(args.effect, args.color, base)
     stop = threading.Event()
-    signal.signal(signal.SIGINT, lambda *_: stop.set())  # finish the current frame, then stop
-    print(f"Reactive '{args.effect}' is live: type on the keyboard. Ctrl+C to stop.", file=sys.stderr)
-    sent, seconds = react.run(kb, renderer, stop)
-    print(f"Stopped after {sent} frames in {seconds:.0f} s. The keys keep the last frame until you set a look.")
+    log = (lambda msg: print(msg, file=sys.stderr)) if args.verbose else None
+    old = {sig: signal.signal(sig, lambda *_: stop.set()) for sig in (signal.SIGINT, signal.SIGTERM)}
+    sent, waiting, start = 0, False, time.monotonic()
+    try:
+        while not stop.is_set():  # finish the current frame on Ctrl+C / systemctl stop, then leave
+            try:
+                with Keyboard(args.link or "wired", dry_run=args.dry_run, log=log) as kb:
+                    print(f"Reactive '{args.effect}' is live: type on the keyboard. Ctrl+C to stop.", file=sys.stderr)
+                    waiting = False
+                    sent += react.run(kb, renderer, stop)[0]
+            except (AulaError, OSError) as error:
+                if not args.wait:
+                    raise
+                if not waiting:  # one line per change keeps a login-service log short
+                    print(f"Waiting for the keyboard on USB-C: {error}", file=sys.stderr)
+                    waiting = True
+                stop.wait(WAIT_S)
+    finally:
+        for sig, handler in old.items():
+            signal.signal(sig, handler)
+    print(f"Stopped after {sent} frames in {time.monotonic() - start:.0f} s. "
+          "The keys keep the last frame until you set a look.")
 
 
 def cmd_clock(args, kb):
@@ -221,7 +244,9 @@ def parser():
     p.add_argument("--base", help="background: a pattern name, colours like ff0000,0000ff, or one colour")
     p.add_argument("--base-level", type=int, default=25, choices=range(0, 101), metavar="0-100",
                    help="background brightness in percent (default 25)")
-    p.set_defaults(run=cmd_react, device=True, link_needed="wired")
+    p.add_argument("--wait", action="store_true", help="if the keyboard is not on USB-C, wait for it instead of "
+                                                       "exiting, and carry on after unplug/replug (for login)")
+    p.set_defaults(run=cmd_react, device=False)
 
     p = sub.add_parser("clock", help="set the screen clock to this computer's local time")
     p.add_argument("--at", help="set this time instead, ISO format, e.g. 2026-11-15T07:30:00")
