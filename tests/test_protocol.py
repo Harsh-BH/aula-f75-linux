@@ -260,6 +260,10 @@ class Reactive(unittest.TestCase):
         g.press(esc, 0.0)
         self.assertEqual(g.frame(0.0)[esc], 0x10FF10)  # light adds to the background, clamped
         self.assertEqual(g.frame(2.0)[esc], 0x101010)
+        cycle = Renderer("glow", [0x0000FF, 0xFF0000, 0x8000FF])  # presses take the colours in turn
+        for n in range(4):
+            cycle.press(esc, float(n))
+        self.assertEqual([p[2] for p in cycle.presses], [(0, 0, 255), (255, 0, 0), (128, 0, 255), (0, 0, 255)])
         heat = Renderer("heatmap")
         for _ in range(12):
             heat.press(esc, 0.0)

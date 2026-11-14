@@ -59,15 +59,18 @@ class Renderer:
     def __init__(self, effect, color=None, base=None):
         if effect not in EFFECTS:
             raise AulaError(f"unknown reactive effect {effect!r}; choose from {', '.join(EFFECTS)}")
-        self.effect, self.color, self.base = effect, color, base or {}
+        # color: None = rainbow, one 0xRRGGBB, or a list that key presses cycle through
+        self.palette = None if color is None else [color] if isinstance(color, int) else list(color)
+        self.effect, self.base, self.count = effect, base or {}, 0
         self.presses, self.heat, self.hue, self.last = [], {}, 0.0, None
 
     def press(self, index, now):
-        if self.color is None:  # rainbow: each press gets the next hue, golden-angle apart
+        if self.palette is None:  # rainbow: each press gets the next hue, golden-angle apart
             self.hue = (self.hue + 0.618034) % 1.0
             colour = tuple(c * 255 for c in colorsys.hsv_to_rgb(self.hue, 1, 1))
         else:
-            colour = rgb(self.color)
+            colour = rgb(self.palette[self.count % len(self.palette)])
+            self.count += 1
         self.presses.append((now, index, colour))
         self.heat[index] = self.heat.get(index, 0.0) + 1.0
 

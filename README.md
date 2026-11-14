@@ -103,7 +103,7 @@ aula-f75 effect NAME [-c RRGGBB] [--colorful] [-b 0-5] [-s 0-5] [-d right|down|l
 aula-f75 off
 aula-f75 keys [--base RRGGBB] KEY[,KEY…]=COLOUR …   per-key; names in aula_f75/layout.py, or LED numbers
 aula-f75 keys --pattern NAME|C1,C2,… [--axis x|y|diagonal|radial] [KEY=COLOUR …]   gradient over the keys
-aula-f75 react ripple|glow|heatmap|speed [-c rainbow|RRGGBB] [--base PATTERN] [--base-level 0-100]   USB-C only, Ctrl+C stops
+aula-f75 react ripple|glow|heatmap|speed [-c rainbow|RRGGBB[,RRGGBB…]] [--base PATTERN] [--base-level 0-100]   USB-C only, Ctrl+C stops
 aula-f75 clock [--at 2026-11-15T07:30:00]
 aula-f75 image FILE [--fit fit|fill|stretch] [--frame-ms 30-500]      USB-C only
 aula-f75 text "line one\nline two" [--fg white] [--bg black]          USB-C only

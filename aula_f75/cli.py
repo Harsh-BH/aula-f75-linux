@@ -215,8 +215,9 @@ def parser():
     p = sub.add_parser("react", help="keys light up as you type, live from this PC (USB-C only), e.g. `react ripple`")
     p.add_argument("effect", choices=EFFECTS, help="ripple: rings roll out from each key; glow: keys light and fade; "
                                                    "heatmap: keys warm up with use; speed: board colour follows typing speed")
-    p.add_argument("-c", "--color", type=lambda s: None if s == "rainbow" else color(s), default=None,
-                   help="colour of the reaction: rainbow (default, a new hue per key press) or RRGGBB")
+    p.add_argument("-c", "--color", type=lambda s: None if s == "rainbow" else [color(c) for c in s.split(",")],
+                   default=None, help="colour of the reaction: rainbow (default, a new hue per key press), "
+                                      "RRGGBB, or several (0000ff,ff0000,8000ff) that key presses take in turn")
     p.add_argument("--base", help="background: a pattern name, colours like ff0000,0000ff, or one colour")
     p.add_argument("--base-level", type=int, default=25, choices=range(0, 101), metavar="0-100",
                    help="background brightness in percent (default 25)")
