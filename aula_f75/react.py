@@ -111,7 +111,7 @@ class Renderer:
         return {i: (min(255, int(r)) << 16) | (min(255, int(g)) << 8) | min(255, int(b)) for i, (r, g, b) in out.items()}
 
 
-def run(kb, renderer, stop, idle_s=0.1):
+def run(kb, renderer, stop, idle_s=0.05):
     """Stream frames until stop (a threading.Event) is set. Returns (frames sent, seconds)."""
     if kb.link != "wired":
         raise AulaError("reactive lighting needs the USB-C cable (the official app offers it only wired)")
@@ -126,7 +126,10 @@ def run(kb, renderer, stop, idle_s=0.1):
         if not fds:
             raise AulaError("the keyboard's input devices were not found under /dev/input")
         log, kb.log = kb.log, (lambda msg: None)  # 3 reports per frame at ~20 fps would flood any log
-        sent, failed, start, previous = 0, 0, time.monotonic(), None
+        sent, failed, start = 0, 0, time.monotonic()
+        # Send a frame every pass, even when nothing moves: [HW] after a pause without frames the
+        # keyboard leaves live mode and shows its saved look again. The official worker
+        # (FUN_004342f0) likewise calls FUN_00427dc0 back to back while the page is open.
         while not stop.is_set():
             ready, _, _ = select.select(fds, [], [], 0 if renderer.presses or renderer.heat else idle_s)
             now = time.monotonic()
@@ -135,16 +138,14 @@ def run(kb, renderer, stop, idle_s=0.1):
                 for _sec, _usec, kind, code, value in EVENT.iter_unpack(data[:len(data) - len(data) % EVENT.size]):
                     if kind == EV_KEY and value == PRESS and code in INDEX:
                         renderer.press(INDEX[code], now)
-            frame = renderer.frame(now)
-            if frame != previous:  # an idle board costs no USB traffic
-                try:
-                    kb.run(P.live_frame(frame))
-                    previous, sent, failed = frame, sent + 1, 0
-                except AulaError:  # [HW] the keyboard can answer "busy" (ff) twice in a row mid-stream
-                    failed += 1    # drop the frame: the next one replaces it anyway
-                    if failed >= 10:
-                        raise
-                    time.sleep(0.05)
+            try:
+                kb.run(P.live_frame(renderer.frame(now)))
+                sent, failed = sent + 1, 0
+            except AulaError:  # [HW] the keyboard can answer "busy" (ff) twice in a row mid-stream
+                failed += 1    # drop the frame: the next one replaces it anyway
+                if failed >= 10:
+                    raise
+                time.sleep(0.05)
         kb.log = log
         return sent, time.monotonic() - start
     finally:

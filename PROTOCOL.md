@@ -149,6 +149,9 @@ branch, and `custom_light="1"` only in `<menu>`, not `<menu_wireless>`, so this 
   2 ms between data pages. A read-back with byte 3 = `ff` (busy) makes it send the report once more.
 - [HW] Both commands answer byte 3 = `01`. A frame takes ~43 ms (~23 fps). During long streams `04 02`
   occasionally answers `ff` twice in a row; dropping that frame and sending the next one works.
+- [HW] When frames stop for a while, the keyboard leaves live mode and shows its saved look again.
+  The official worker [BIN] `FUN_004342f0` calls `FUN_00427dc0` back to back while the page is open,
+  so it never pauses; this app also sends frames continuously, idle or not.
 
 ## 5. Clock (screen clock face)
 
