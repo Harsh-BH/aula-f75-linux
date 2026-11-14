@@ -133,6 +133,23 @@ F1–F12=2–13, \`=19, …), copied into `aula_f75/layout.py`.
 2. 21 reports `14 LL NN <28 table bytes> CK`, where NN is the packet number 0–20 and
    LL = `0x1c`, or `0x10` on the last packet. The app sleeps 2 ms after each.
 
+## 4a. Live per-key frames ("Real-time Lighting", cable only)
+
+[BIN] `FUN_00427dc0` (worker task 6). The layout has `rgb_keyboard="1"`, which sets the full-colour
+branch, and `custom_light="1"` only in `<menu>`, not `<menu_wireless>`, so this is cable only ([CFG]).
+```
+04 20 00 00 00 00 00 00 08 (rb)                 [8] = 08 for rgb_keyboard="1" (03 otherwise)
+512 bytes = 8 pages: [light_index, R, G, B] per key, in layout XML order, zero-filled
+04 02 (rb)
+```
+- `light_index` comes from the `key_index` → `light_index` map built from the layout ([BIN] layout parser `FUN_0041cb60`,
+  `this+0x824`). R, G, B are scaled by a per-key level `*lvl >> 8`; this app sends final colours.
+- There is no `04 18` before and no `04 f0` after, so nothing is saved: frames can be streamed.
+- Timing is the fast path [BIN] `FUN_0044f0a0`: 5 ms before each single report and before its read-back,
+  2 ms between data pages. A read-back with byte 3 = `ff` (busy) makes it send the report once more.
+- [HW] Both commands answer byte 3 = `01`. A frame takes ~43 ms (~23 fps). During long streams `04 02`
+  occasionally answers `ff` twice in a row; dropping that frame and sending the next one works.
+
 ## 5. Clock (screen clock face)
 
 Cable [BIN] `FUN_004238f0`, dongle [BIN] `FUN_00423a20`. The values come from Windows
@@ -216,7 +233,7 @@ the app shows no battery.
 | Key response, sleep time, Win/Alt-Tab/Alt-F4 lock, Fn layer | cable `04 18`, `04 17 …`, page, `04 02`; dongle `07 10 00 …` | [BIN] `FUN_00414020`, `FUN_00414290` |
 | Key remap (base and Fn layer) | cable `04 18`, `04 11`/`04 27 [8]=09`, 576 B, `04 02`, `04 f0`; dongle `FUN_00418c70` | [BIN] `FUN_004183d0` |
 | Macros | `04 19`, `04 15 [8]=…`, pages, `04 02`; dongle `09 1c …` | [BIN] `FUN_0042d6d0`, `FUN_0042dc50` |
-| Music / ambilight (host streams per-key colours) | `04 20 …` fast path (5 ms gaps); dongle `0b 1c …` | [BIN] `FUN_00427dc0`, `FUN_004329c0`, `FUN_0044f0a0`, `FUN_00432c20` |
+| Music / ambilight (audio-driven; the live-frame transport itself is §4a) | `04 20 …` (§4a); dongle `0b 1c …` | [BIN] `FUN_00427dc0`, `FUN_004329c0`, `FUN_0044f0a0`, `FUN_00432c20` |
 | Live LED read-back for the preview | `04 f5 [8]=09`, then 9 GET_FEATUREs | [BIN] `FUN_0042aeb0`; [CAP] polled about every 150 ms |
 | Side light | `05 01 00 (mode+0x1f)` | [BIN] `FUN_004349c0`. The F75 Max has `sidelight="0"`. |
 

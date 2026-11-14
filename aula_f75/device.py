@@ -105,13 +105,14 @@ class Keyboard:
             if step.kind == "cmd":
                 replies += self._cmd(step)
             elif step.kind == "data":
-                self._sleep(CMD_GAP_S)
+                gap = CMD_GAP_S if step.gap is None else step.gap
+                self._sleep(gap)
                 for i in range(0, len(step.data), P.CMD_LEN):  # FUN_0044eeb0 multi-page branch
                     self.cmd.set_feature(step.data[i:i + P.CMD_LEN])
                     if len(step.data) > P.CMD_LEN:
-                        self._sleep(CMD_GAP_S)
+                        self._sleep(gap)
                 if step.read:
-                    self._sleep(CMD_GAP_S)
+                    self._sleep(gap)
                     replies.append(self.cmd.get_feature(P.CMD_LEN))
             elif step.kind == "chunk":
                 if sent == 0:
@@ -130,16 +131,20 @@ class Keyboard:
         return replies
 
     def _cmd(self, step):
-        self._sleep(CMD_GAP_S)
+        gap = CMD_GAP_S if step.gap is None else step.gap
+        self._sleep(gap)
         self.cmd.set_feature(step.data)
         if not step.read:
             self.log(f"cmd {step.data[:10].hex(' ')}")
             return []
         for _attempt in range(2):  # a too-early read can return a stale echo; give it one more beat
-            self._sleep(CMD_GAP_S)
+            self._sleep(gap)
             reply = self.cmd.get_feature(P.CMD_LEN)
             if reply[:2] == step.data[:2] and reply[3] == 0x01:
                 break
+            if reply[3] == 0xFF:  # busy: FUN_0044f0a0 sends the report again once, then re-reads
+                self._sleep(gap)
+                self.cmd.set_feature(step.data)
         self.log(f"cmd {step.data[:10].hex(' ')} -> {reply[:8].hex(' ')}")
         if reply[:2] != step.data[:2] or reply[3] != 0x01:
             message = f"keyboard did not accept {step.data[:2].hex(' ')} (reply {reply[:8].hex(' ')})"

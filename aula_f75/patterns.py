@@ -31,8 +31,13 @@ def gradient(stops, axis="x"):
     for index, (x, y) in centres.items():
         u, v = (x - min(xs)) / (max(xs) - min(xs)), (y - min(ys)) / (max(ys) - min(ys))
         t = {"x": u, "y": v, "diagonal": (u + v) / 2, "radial": math.hypot(x - mid_x, y - mid_y) / reach}[axis]
-        pos = t * (len(stops) - 1)
-        k = min(int(pos), max(len(stops) - 2, 0))
-        a, b, f = stops[k], stops[min(k + 1, len(stops) - 1)], pos - k
-        colors[index] = sum(round((a >> s & 255) * (1 - f) + (b >> s & 255) * f) << s for s in (16, 8, 0))
+        colors[index] = blend(stops, t)
     return colors
+
+
+def blend(stops, t):
+    """The colour at t (0..1, clamped) along evenly spaced colour stops."""
+    pos = min(max(t, 0.0), 1.0) * (len(stops) - 1)
+    k = min(int(pos), max(len(stops) - 2, 0))
+    a, b, f = stops[k], stops[min(k + 1, len(stops) - 1)], pos - k
+    return sum(round((a >> s & 255) * (1 - f) + (b >> s & 255) * f) << s for s in (16, 8, 0))

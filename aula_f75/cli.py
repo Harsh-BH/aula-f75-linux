@@ -8,7 +8,8 @@ from . import protocol as P
 from .device import AulaError, Keyboard
 from .hid import endpoints
 from .layout import KEYS
-from .patterns import AXES, PATTERNS, gradient
+from .patterns import AXES, PATTERNS, blend, gradient
+from .react import EFFECTS
 
 NAMED = {"red": 0xFF0000, "green": 0x00FF00, "blue": 0x0000FF, "white": 0xFFFFFF, "black": 0x000000,
          "yellow": 0xFFFF00, "cyan": 0x00FFFF, "magenta": 0xFF00FF, "orange": 0xFF8000, "purple": 0x8000FF,
@@ -106,6 +107,21 @@ def cmd_keys(args, kb):
     print(f"Per-key colours over {kb.link}: {len(colors)} LEDs")
 
 
+def cmd_react(args, kb):
+    import signal
+    import threading
+    from . import react
+    base = None
+    if args.base:  # dimmed so the reactive light stands out
+        base = {i: blend((0, c), args.base_level / 100) for i, c in pattern_colors(args.base).items()}
+    renderer = react.Renderer(args.effect, args.color, base)
+    stop = threading.Event()
+    signal.signal(signal.SIGINT, lambda *_: stop.set())  # finish the current frame, then stop
+    print(f"Reactive '{args.effect}' is live: type on the keyboard. Ctrl+C to stop.", file=sys.stderr)
+    sent, seconds = react.run(kb, renderer, stop)
+    print(f"Stopped after {sent} frames in {seconds:.0f} s. The keys keep the last frame until you set a look.")
+
+
 def cmd_clock(args, kb):
     now = datetime.datetime.fromisoformat(args.at) if args.at else datetime.datetime.now()
     kb.set_clock(now)
@@ -195,6 +211,16 @@ def parser():
     p.add_argument("--axis", choices=AXES, help="gradient direction (default: the preset's own, or x)")
     p.add_argument("-b", "--brightness", type=level, default=5)
     p.set_defaults(run=cmd_keys, device=True)
+
+    p = sub.add_parser("react", help="keys light up as you type, live from this PC (USB-C only), e.g. `react ripple`")
+    p.add_argument("effect", choices=EFFECTS, help="ripple: rings roll out from each key; glow: keys light and fade; "
+                                                   "heatmap: keys warm up with use; speed: board colour follows typing speed")
+    p.add_argument("-c", "--color", type=lambda s: None if s == "rainbow" else color(s), default=None,
+                   help="colour of the reaction: rainbow (default, a new hue per key press) or RRGGBB")
+    p.add_argument("--base", help="background: a pattern name, colours like ff0000,0000ff, or one colour")
+    p.add_argument("--base-level", type=int, default=25, choices=range(0, 101), metavar="0-100",
+                   help="background brightness in percent (default 25)")
+    p.set_defaults(run=cmd_react, device=True, link_needed="wired")
 
     p = sub.add_parser("clock", help="set the screen clock to this computer's local time")
     p.add_argument("--at", help="set this time instead, ISO format, e.g. 2026-11-15T07:30:00")

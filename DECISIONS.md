@@ -152,3 +152,20 @@ all now fixed and covered by regression tests in `DeviceFailureModes`:
     false "no reply" warnings (decision 12). Measured over 25 probes plus 40 real commands;
     after the change, 20 back-to-back runs had no false warning. The keyboard also went fully
     silent once for about a minute while lit, and recovered by itself; the warning covers that.
+
+## Added on request after the hardware test
+
+26. **Reactive lighting uses the official "Real-time Lighting" frame (`04 20`, PROTOCOL.md §4a).**
+    You asked for keys that react to typing. The saved per-key write takes ~1 s and ends with a
+    `04 f0` save, so it is too slow and would write the keyboard's memory on every update. The
+    official live frame saves nothing and takes ~43 ms. `04 20` joins the allowlist with its
+    [BIN] source; the official app streams it for its own custom-light page, so it's a normal
+    command, not a firmware or flash operation. Cable only, like the official app.
+
+27. **Key presses come from the keyboard's own `/dev/input/event*` nodes**, readable because you
+    are in the `input` group. They are not grabbed, so typing is unaffected. They are used only
+    to place light: no key codes are stored, printed or logged, even with `-v`. Only this
+    keyboard's devices are opened, so the laptop keyboard doesn't trigger effects.
+
+28. **A busy frame is dropped, not fatal.** The stream stops only after 10 failed frames in a
+    row. Each frame is a full snapshot, so the next one repairs a dropped one.

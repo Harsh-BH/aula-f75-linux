@@ -207,6 +207,73 @@ class Screen(unittest.TestCase):
         self.assertEqual([s.data for s in steps if s.kind == "cmd"], commands)
 
 
+class Reactive(unittest.TestCase):
+    def test_live_frame(self):
+        # [BIN] FUN_00427dc0, rgb_keyboard="1": 04 20 [8]=08, 0x200 bytes of [light_index,R,G,B] in layout order, 04 02
+        from aula_f75.layout import KEYS
+        steps = P.live_frame({1: 0xFF0000, 94: 0x0000FF})
+        self.assertEqual([(s.kind, s.read, s.gap) for s in steps], [("cmd", True, 0.005), ("data", False, 0.002), ("cmd", True, 0.005)])
+        self.assertEqual(steps[0].data, h("0420 0000 0000 0000 08") + bytes(55))
+        self.assertEqual(steps[2].data, h("0402") + bytes(62))
+        table = steps[1].data
+        space = list(KEYS).index("space")
+        self.assertEqual((len(table), table[:8], table[4 * space:4 * space + 4]), (512, h("01ff0000 02000000"), h("5e0000ff")))
+        self.assertEqual(table[4 * len(KEYS):], bytes(512 - 4 * len(KEYS)))
+        for step in steps:
+            P.check_step(step)
+
+    def test_busy_frame_is_dropped_not_fatal(self):
+        import threading
+        from unittest import mock
+        from aula_f75 import react
+        from aula_f75.device import AulaError
+        stop = threading.Event()
+
+        class Kb:  # [HW] 2026-11-14: 04 02 answered ff twice in a row after ~13 s of heatmap streaming
+            link, log, calls = "wired", None, 0
+
+            def run(self, steps):
+                self.calls += 1
+                if self.calls < 3:
+                    raise AulaError("busy")
+                stop.set()
+        kb = Kb()
+        with mock.patch.object(react, "input_devices", lambda: ["/dev/null"]), \
+                mock.patch.object(react.time, "sleep", lambda s: None):
+            sent, _ = react.run(kb, react.Renderer("glow"), stop)
+        self.assertEqual((kb.calls, sent), (3, 1))
+
+    def test_key_codes_cover_every_key_the_host_sees(self):
+        from aula_f75.layout import KEYS
+        from aula_f75.react import LINUX_KEYS
+        self.assertEqual(set(LINUX_KEYS.values()), set(KEYS) - {"fn"})  # Fn is handled inside the keyboard
+
+    def test_effects(self):
+        from aula_f75.layout import KEYS
+        from aula_f75.react import Renderer
+        esc, right = KEYS["esc"][0], KEYS["right"][0]
+        r = Renderer("ripple", 0xFF0000)
+        r.press(esc, 0.0)
+        self.assertEqual((r.frame(0.0)[esc], r.frame(0.0)[right]), (0xFF0000, 0))
+        self.assertTrue(set(r.frame(1.0).values()) == {0} and not r.presses)  # ring gone after its life
+        g = Renderer("glow", 0x00FF00, base={esc: 0x101010})
+        g.press(esc, 0.0)
+        self.assertEqual(g.frame(0.0)[esc], 0x10FF10)  # light adds to the background, clamped
+        self.assertEqual(g.frame(2.0)[esc], 0x101010)
+        heat = Renderer("heatmap")
+        for _ in range(12):
+            heat.press(esc, 0.0)
+        self.assertEqual(heat.frame(0.0)[esc], 0xFFFFFF)  # 12 presses = hottest
+        self.assertEqual(heat.frame(120.0)[esc], 0)       # cooled off
+        speed = Renderer("speed")
+        slow = speed.frame(0.0)[right]
+        for n in range(16):
+            speed.press(esc, n / 8)
+        fast = speed.frame(2.0)[right]  # 15 presses in the last 2 s turn the board (mostly) red
+        self.assertNotEqual(fast, slow)
+        self.assertTrue(fast >> 16 == int(0xFF * 0.45) and (fast >> 8 & 255) < 0x20 and fast & 255 == 0, hex(fast))
+
+
 class Safety(unittest.TestCase):
     def test_reset_and_bootloader_refused(self):
         for step in (

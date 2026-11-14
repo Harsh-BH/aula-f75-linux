@@ -6,6 +6,8 @@ function or USB capture behind every constant.
 """
 from collections import namedtuple
 
+from .layout import KEYS
+
 WIRED = (0x0C45, 0x800A)    # USB-C cable
 DONGLE = (0x05AC, 0x024F)   # 2.4 GHz dongle (reports itself as an Apple keyboard)
 WIRED_CMD_PAGE = 0xFF13     # interface 3: 64-byte feature reports, commands
@@ -28,7 +30,7 @@ SLOT = 1                      # screen-list entry + 1; the official UI default (
 #   "data"  cable SET_FEATURE of one or more 64-byte data pages; read=True: GET after (echo only)
 #   "chunk" cable 4096-byte output report on the data interface, then wait for CHUNK_ACK
 #   "out"   dongle 32-byte output report, then wait for the echo of its first 3 bytes
-Step = namedtuple("Step", "kind data read", defaults=(False,))
+Step = namedtuple("Step", "kind data read gap", defaults=(False, None))  # gap: seconds before each report, None = 35 ms
 
 MODES = {  # official names, 1033.lan strings 521-539
     0: "off", 1: "static", 2: "single-on", 3: "single-off", 4: "glittering", 5: "falling",
@@ -45,7 +47,7 @@ KEY_TABLE_LEN = 576   # 144 entries x [index, R, G, B], trailer in the last one
 
 # ------------------------------------------------------------------ safety
 
-WIRED_OPS = {0x18, 0x13, 0x02, 0xF0, 0x28, 0x23, 0x72}  # begin, light, apply, save, clock, keys, screen
+WIRED_OPS = {0x18, 0x13, 0x02, 0xF0, 0x28, 0x23, 0x72, 0x20}  # begin, light, apply, save, clock, keys, screen, live
 DONGLE_OPS = {0x05, 0x0C, 0x14, 0x20}                     # light, clock, key table, battery
 BOOTLOADER_MAGIC = bytes.fromhex("aa42895aff7162cc")
 
@@ -155,6 +157,25 @@ def key_table(colors):
         table[4 * index + 1:4 * index + 4] = color.to_bytes(3, "big")
     table[574:576] = TRAILER
     return bytes(table)
+
+
+LIVE_LEN = 512              # FUN_00427dc0 sends 0x200 bytes for rgb_keyboard="1" layouts
+LIVE_CMD_S, LIVE_PAGE_S = 0.005, 0.002  # FUN_0044f0a0: 5 ms around single reports, 2 ms between pages
+
+
+def live_frame(colors):
+    """One frame of the official "Real-time Lighting" stream (FUN_00427dc0, cable only).
+
+    04 20 [8]=08, then [light_index, R, G, B] for every key in layout order, then 04 02. Nothing
+    is saved (no 04 18 / 04 f0), so frames can be streamed. Keys missing from colors are black.
+    """
+    table = bytearray(LIVE_LEN)
+    for n, (index, *_rect) in enumerate(KEYS.values()):
+        rgb = colors.get(index, 0)
+        table[4 * n:4 * n + 4] = bytes((index, rgb >> 16 & 0xFF, rgb >> 8 & 0xFF, rgb & 0xFF))
+    return [Step("cmd", cmd(0x20, 0x08), True, LIVE_CMD_S),
+            Step("data", bytes(table), False, LIVE_PAGE_S),
+            Step("cmd", cmd(0x02), True, LIVE_CMD_S)]
 
 
 def per_key(link, colors, brightness=5):

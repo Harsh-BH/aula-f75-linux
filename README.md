@@ -103,6 +103,7 @@ aula-f75 effect NAME [-c RRGGBB] [--colorful] [-b 0-5] [-s 0-5] [-d right|down|l
 aula-f75 off
 aula-f75 keys [--base RRGGBB] KEY[,KEY…]=COLOUR …   per-key; names in aula_f75/layout.py, or LED numbers
 aula-f75 keys --pattern NAME|C1,C2,… [--axis x|y|diagonal|radial] [KEY=COLOUR …]   gradient over the keys
+aula-f75 react ripple|glow|heatmap|speed [-c rainbow|RRGGBB] [--base PATTERN] [--base-level 0-100]   USB-C only, Ctrl+C stops
 aula-f75 clock [--at 2026-11-15T07:30:00]
 aula-f75 image FILE [--fit fit|fill|stretch] [--frame-ms 30-500]      USB-C only
 aula-f75 text "line one\nline two" [--fg white] [--bg black]          USB-C only
@@ -117,6 +118,9 @@ global options, before or after the command: --link wired|dongle, -n/--dry-run, 
   ice, candy, neon, or your own gradient (`--pattern ff0000,ffffff,0000ff --axis radial`).
   Keys you list after it override it: `keys --pattern ocean w,a,s,d=red`. The GUI's Per-key
   tab has the same presets ("Use pattern"), and you can paint over them before applying.
+- **Reactive (USB-C):** `react ripple` (rings roll out from each key), `glow` (keys light and
+  fade), `heatmap` (keys warm up with use), `speed` (board colour follows typing speed). Runs
+  until Ctrl+C; the keys keep the last frame afterwards until you set another look.
 - **Colours:** hex `ff8800` or a basic name (`red`, `orange`, …).
 - **Link choice:** the link is picked automatically, the cable first when both are
   present. Use `--link` to force one.
@@ -150,6 +154,7 @@ aula_f75/hid.py        sysfs discovery, hidraw ioctls, dry-run transport
 aula_f75/screen.py     image/GIF/text -> 128x128 RGB565 frames (Pillow)
 aula_f75/layout.py     per-key LED map, generated from the official layout XML
 aula_f75/patterns.py   gradient presets laid over the key positions
+aula_f75/react.py      reactive effects: key presses in, live frames out
 aula_f75/cli.py, gui.py
 tests/test_protocol.py byte-exact vectors from official captures and the decompiled app
 tools/pcap_usb.py      USBPcap reader used to pull those vectors
