@@ -105,10 +105,11 @@ def _upload(kb, images, delays, args):
 
     def progress(done, total):
         if not args.dry_run:
-            print(f"\rUploading {len(images)} frame(s): {done}/{total} chunks", end="", file=sys.stderr, flush=True)
+            print(f"\rUploading {len(images)} frame(s): {done}/{total} chunks", end="\n" if done == total else "",
+                  file=sys.stderr, flush=True)  # end the line before -v logs the closing 04 02
 
     kb.upload_screen(stream, progress)
-    print(f"{'' if args.dry_run else chr(10)}Screen: {len(images)} frame(s), {chunks} chunks uploaded over USB-C")
+    print(f"Screen: {len(images)} frame(s), {chunks} chunks uploaded over USB-C")
 
 
 def cmd_image(args, kb):
